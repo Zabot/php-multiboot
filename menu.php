@@ -44,20 +44,35 @@ function walkDirectory($root, $host) {
 
   if ( isset( $kernel_targets ) ) {
     foreach( $kernel_targets as $target_name => $target ) {
-      $kernel      = $target['kernel'];
-      $initrd      = $target['initrd'];
-      $kernel_args = "initrd=$initrd " . $target['bootargs'];
+      if (array_key_exists('kernel', $target)) {
+        $kernel      = $target['kernel'];
+        $initrd      = $target['initrd'];
+        $kernel_args = "initrd=$initrd " . $target['bootargs'];
 
-      $kernel_args = template($kernel_args, ['hostpath'=>"$host/$root/"]);
+        $kernel_args = template($kernel_args, ['hostpath'=>"$host/$root/"]);
 
-      // TODO For debian
-      //$kernel_args = "nomodeset initrd=$initrd fetch=$host/squashfs";
+        // TODO For debian
+        //$kernel_args = "nomodeset initrd=$initrd fetch=$host/squashfs";
 
-      $boot_cmd = "kernel $host/$root/$kernel $kernel_args && " .
-                  "initrd $host/$root/$initrd && " .
-                  "boot";
+        $boot_cmd = "kernel $host/$root/$kernel $kernel_args && " .
+                    "initrd $host/$root/$initrd && " .
+                    "boot";
 
-      $targets[$target_name] = $boot_cmd;
+        $targets[$target_name] = $boot_cmd;
+      } else if (array_key_exists('wimboot',$target)) {
+        $wimboot      = $target['wimboot'];
+        $image        = $target['image'];
+        $bcd          = $target['bcd'];
+        $boot         = $target['boot'];
+
+        $boot_cmd = "kernel $host/$root/$wimboot && " .
+                    "initrd $host/$root/$bcd     BCD && " .
+                    "initrd $host/$root/$boot    boot.sdi && " .
+                    "initrd $host/$root/$image boot.wim && " .
+                    "boot";
+
+        $targets[$target_name] = $boot_cmd;
+      }
     }
 
     return [$directory_name => $targets];
