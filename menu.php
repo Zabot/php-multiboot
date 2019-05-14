@@ -1,69 +1,109 @@
 <?php
 
+function addFileTarget($path, $host) {
+  $pathinfo = pathinfo($path);
+  $extension = $pathinfo['extension'];
+  $target_name = $pathinfo['filename'];
+
+  // ISOs get booted like SAN targets
+  if ($extension == 'iso') {
+    return [$target_name => "sanboot $host/$path"];
+
+  // EFI scripts get chainloaded
+  } else if ($extension == 'pxe') {
+    return [$target_name => "chain --autofree $host/path"];
+
+  // TXT files contain custom entries
+  } else if ($extension == 'txt') {
+    return [$target_name => trim(file_get_contents($path))];
+  }
+}
+
+function walkDirectory($root, $host) {
+  $targets = [];
+  $directory_name = basename($root);
+
+  // Attempt to load a config file
+  if (file_exists("$root/config.ini")) {
+    $kernel_targets = parse_ini_file("$root/config.ini", true);
+  }
+
+  if ( isset( $kernel_targets ) ) {
+    foreach( $kernel_targets as $target_name => $target ) {
+      $kernel      = $target['kernel'];
+      $initrd      = $target['initrd'];
+      $kernel_args = "initrd=$initrd " . $target['bootargs'];
+
+      // TODO For debian
+      //$kernel_args = "nomodeset initrd=$initrd fetch=$host/squashfs";
+
+      $boot_cmd = "kernel $host/$root/$kernel $kernel_args && " .
+                  "initrd $host/$root/$initrd && " .
+                  "boot";
+
+      $targets[$target_name] = $boot_cmd;
+    }
+
+    return [$directory_name => $targets];
+  }
+
+  // $root isn't a netboot directory, iterate through every file
+  $files = new RecursiveDirectoryIterator($root,
+      RecursiveDirectoryIterator::SKIP_DOTS);
+
+  foreach($files as $file) {
+    $path = $file->getPathname();
+    if ($file->isDir()) {
+      $directory_targets = walkDirectory($path, $host);
+      $targets = array_merge_recursive ($targets, $directory_targets);
+    } else if ($file->isFile()) {
+      $file_target = addFileTarget($path, $host);
+      if ($file_target)
+        $targets = array_merge_recursive ($targets, $file_target);
+    }
+  }
+
+  return [$directory_name => $targets];
+}
+
+function generateMenu($targets, $labels) {
+  $menu = [];
+  foreach($targets as $label => $target) {
+    if ( is_array($target) ) {
+      if ($labels) array_push($menu, "item --gap $label");
+      $menu = array_merge($menu, generateMenu($target, $labels));
+    } else {
+      $key = md5($target);
+      if ($labels) array_push($menu, "item $key - Boot $label");
+      else array_push($menu, "iseq \${boot} $key && $target ||");
+    }
+  }
+  return $menu;
+}
+
 function getMenu($root) {
-  $host = $_SERVER['HTTP_HOST'];
+  if (isset($_SERVER['HTTP_HOST'])) $host = 'http://'.$_SERVER['HTTP_HOST'].'/';
+  else $host = 'http://example.com/';
+
   $menu = ["#!ipxe"];
 
   array_push($menu, "menu Select Boot Option");
 
-  $files = new RecursiveIteratorIterator(
-    new RecursiveDirectoryIterator($root),
-    RecursiveIteratorIterator::SELF_FIRST);
+  $targets = walkDirectory($root, $host)[basename($root)];
 
-  $ignored = ['.', '..'];
-  $options = [];
-  foreach($files as $file){
-    $filename = $file->getFilename();
-    $path = $file->getPathname();
-
-    if (in_array($filename, $ignored)) continue;
-
-    // Directories get a menu divider, not an entry
-    if ($file->isDir()) {
-      // TODO Only add directories with valid boot options
-      array_push($menu, "item --gap -- ----- $filename -----");
-
-    // Use the correct boot command depending on the file extension
-    } else {
-      $extension = pathinfo($path)['extension'];
-      $httppath = "http://$host/$path";
-
-      // ISOs get booted like SAN targets
-      $boot_cmd = '';
-      if ($extension == 'iso') {
-        $boot_cmd = "sanboot $httppath";
-
-      // EFI scripts get chainloaded
-      } else if ($extension == 'pxe') {
-        $boot_cmd = "chain --autofree $httppath";
-
-      // TXT files contain custom entries
-      } else if ($extension == 'txt') {
-        $boot_cmd = trim(file_get_contents($path));
-      }
-
-      // If the extension was recognized, add it to the menu
-      if ($boot_cmd) {
-        $options[$filename] = $boot_cmd;
-        array_push($menu, "item $filename Boot $filename");
-      }
-    }
-  }
+  $menu = array_merge($menu, generateMenu($targets, true));
 
   // Display the menu selector
   array_push($menu, "choose boot");
 
-  // Handle the user selection
-  foreach($options as $label => $command) {
-    array_push($menu, "iseq \${boot} $label && $command ||");
-  }
+  $menu = array_merge($menu, generateMenu($targets, false));
 
   return $menu;
 }
 
 header("Content-Type: text/plain");
 
-$menu = getMenu('./pxe');
+$menu = getMenu('./static');
 foreach ($menu as $line)
   echo("$line\n");
 
