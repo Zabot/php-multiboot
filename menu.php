@@ -1,5 +1,19 @@
 <?php
 
+function template($string, $templates) {
+  $template_pattern = '/\${(\w+)}/';
+
+  $matches = [];
+  $match_count = preg_match_all($template_pattern, $string, $matches);
+
+  if ($match_count) {
+    for ($i = 0; $i < $match_count; $i++) {
+      $string = str_replace($matches[0][$i], $templates[$matches[1][$i]], $string);
+    }
+  }
+  return $string;
+}
+
 function addFileTarget($path, $host) {
   $pathinfo = pathinfo($path);
   $extension = $pathinfo['extension'];
@@ -33,6 +47,8 @@ function walkDirectory($root, $host) {
       $kernel      = $target['kernel'];
       $initrd      = $target['initrd'];
       $kernel_args = "initrd=$initrd " . $target['bootargs'];
+
+      $kernel_args = template($kernel_args, ['hostpath'=>"$host/$root/"]);
 
       // TODO For debian
       //$kernel_args = "nomodeset initrd=$initrd fetch=$host/squashfs";

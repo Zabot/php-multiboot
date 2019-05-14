@@ -18,9 +18,12 @@ A simple config file is shown:
 [Alpine Vanilla]
 kernel = vmlinuz-vanilla
 initrd = initramfs-vanilla
-bootargs = nomodeset
+bootargs = 'nomodeset modloop=${hostpath}/modloop-vanilla'
 ```
 The section name will be displayed on the menu. Multiple sections can be used
 to indicate multiple boot configurations. Directories containing a `config.ini`
 will not be traversed for other bootable files.
+
+The string `${hostpath}` can be used in bootargs to indicate the network
+path of the directory containing config.ini.
 
