@@ -14,18 +14,19 @@ function template($string, $templates) {
   return $string;
 }
 
-function addFileTarget($path, $host) {
+function addFileTarget($root, $path, $host) {
   $pathinfo = pathinfo($path);
   $extension = $pathinfo['extension'];
   $target_name = $pathinfo['filename'];
+  $relative_path = str_replace($root, '', $path);
 
   // ISOs get booted like SAN targets
   if ($extension == 'iso') {
-    return [$target_name => "sanboot $host/$path"];
+    return [$target_name => "sanboot $host/$relative_path"];
 
   // EFI scripts get chainloaded
   } else if ($extension == 'pxe') {
-    return [$target_name => "chain --autofree $host/path"];
+    return [$target_name => "chain --autofree $host/$relative_path"];
 
   // TXT files contain custom entries
   } else if ($extension == 'txt') {
@@ -73,7 +74,7 @@ function walkDirectory($root, $host) {
       $directory_targets = walkDirectory($path, $host);
       $targets = array_merge_recursive ($targets, $directory_targets);
     } else if ($file->isFile()) {
-      $file_target = addFileTarget($path, $host);
+      $file_target = addFileTarget($root, $path, $host);
       if ($file_target)
         $targets = array_merge_recursive ($targets, $file_target);
     }
