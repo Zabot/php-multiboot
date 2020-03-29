@@ -119,8 +119,8 @@ function getMenu($root) {
 
 header("Content-Type: text/plain");
 
-config = parse_ini_file('config.ini');
-$menu = getMenu(config['boot_root']);
+$config = parse_ini_file('config/config.ini');
+$menu = getMenu($config['boot_root']);
 
 foreach ($menu as $line)
   echo("$line\n");
