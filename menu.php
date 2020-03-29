@@ -14,7 +14,7 @@ function template($string, $templates) {
   return $string;
 }
 
-function addFileTarget($root, $path, $host) {
+function addFileTarget($root, $http_root, $path, $host) {
   $pathinfo = pathinfo($path);
   $extension = $pathinfo['extension'];
   $target_name = $pathinfo['filename'];
@@ -22,11 +22,11 @@ function addFileTarget($root, $path, $host) {
 
   // ISOs get booted like SAN targets
   if ($extension == 'iso') {
-    return [$target_name => "sanboot $host/$relative_path"];
+    return [$target_name => "sanboot $host/$http_root/$relative_path"];
 
   // EFI scripts get chainloaded
   } else if ($extension == 'pxe') {
-    return [$target_name => "chain --autofree $host/$relative_path"];
+    return [$target_name => "chain --autofree $host/$http_root/$relative_path"];
 
   // TXT files contain custom entries
   } else if ($extension == 'txt') {
@@ -34,7 +34,7 @@ function addFileTarget($root, $path, $host) {
   }
 }
 
-function walkDirectory($root, $host) {
+function walkDirectory($root, $http_root, $host) {
   $targets = [];
   $directory_name = basename($root);
 
@@ -74,7 +74,7 @@ function walkDirectory($root, $host) {
       $directory_targets = walkDirectory($path, $host);
       $targets = array_merge_recursive ($targets, $directory_targets);
     } else if ($file->isFile()) {
-      $file_target = addFileTarget($root, $path, $host);
+      $file_target = addFileTarget($root, $http_root, $path, $host);
       if ($file_target)
         $targets = array_merge_recursive ($targets, $file_target);
     }
@@ -98,7 +98,7 @@ function generateMenu($targets, $labels) {
   return $menu;
 }
 
-function getMenu($root) {
+function getMenu($root, $http_root) {
   if (isset($_SERVER['HTTP_HOST'])) $host = 'http://'.$_SERVER['HTTP_HOST'].'/';
   else $host = 'http://example.com/';
 
@@ -106,7 +106,7 @@ function getMenu($root) {
 
   array_push($menu, "menu Select Boot Option");
 
-  $targets = walkDirectory($root, $host)[basename($root)];
+  $targets = walkDirectory($root, $http_root, $host)[basename($root)];
 
   $menu = array_merge($menu, generateMenu($targets, true));
 
@@ -121,7 +121,7 @@ function getMenu($root) {
 header("Content-Type: text/plain");
 
 $config = parse_ini_file('config/config.ini');
-$menu = getMenu($config['boot_root']);
+$menu = getMenu($config['boot_root'], $config['http_root']);
 
 foreach ($menu as $line)
   echo("$line\n");
