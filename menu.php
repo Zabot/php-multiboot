@@ -54,8 +54,8 @@ function walkDirectory($root, $http_root, $host) {
       // TODO For debian
       //$kernel_args = "nomodeset initrd=$initrd fetch=$host/squashfs";
 
-      $boot_cmd = "kernel $host/$root/$kernel $kernel_args && " .
-                  "initrd $host/$root/$initrd && " .
+      $boot_cmd = "kernel $host/$http_root/$kernel $kernel_args && " .
+                  "initrd $host/$http_root/$initrd && " .
                   "boot";
 
       $targets[$target_name] = $boot_cmd;
@@ -71,7 +71,7 @@ function walkDirectory($root, $http_root, $host) {
   foreach($files as $file) {
     $path = $file->getPathname();
     if ($file->isDir()) {
-      $directory_targets = walkDirectory($path, $host);
+      $directory_targets = walkDirectory($path, $http_root, $host);
       $targets = array_merge_recursive ($targets, $directory_targets);
     } else if ($file->isFile()) {
       $file_target = addFileTarget($root, $http_root, $path, $host);
